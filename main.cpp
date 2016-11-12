@@ -1,55 +1,66 @@
-
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-/* this function is run by the second thread */
-void *inc_x(void *x_void_ptr)
+#define NITER 1000000
+
+int cnt = 0;
+sem_t mutex;
+
+
+
+void * Count(void * a)
 {
+    int i, tmp;
+    sem_wait (&mutex);
+    for(i = 0; i < NITER; i++)
+    {
 
-/* increment x to 100 */
-    int *x_ptr = (int *)x_void_ptr;
-    while(++(*x_ptr) < 100);
-
-    printf("x increment finished\n");
-
-/* the function must return something - NULL will do */
-    return NULL;
-
-}
-
-int main()
-{
-
-    int x = 0, y = 0;
-
-/* show the initial values of x and y */
-    printf("x: %d, y: %d\n", x, y);
-
-/* this variable is our reference to the second thread */
-    pthread_t inc_x_thread;
-
-/* create a second thread which executes inc_x(&x) */
-    if(pthread_create(&inc_x_thread, NULL, inc_x, &x)) {
-        fprintf(stderr, "Error creating thread\n");
-        return 1;
-
-    }
-/* increment y to 100 in the first thread */
-    while(++y < 100);
-
-    printf("y increment finished\n");
-
-/* wait for the second thread to finish */
-    if(pthread_join(inc_x_thread, NULL)) {
-        fprintf(stderr, "Error joining thread\n");
-        return 2;
-
+        tmp = cnt;      /* copy the global cnt locally */
+        tmp = tmp+1;    /* increment the local copy */
+        cnt = tmp;      /* store the local value into the global cnt */
     }
 
-/* show the results - x is now 100 thanks to the second thread */
-    printf("x: %d, y: %d\n", x, y);
-
-    return 0;
-
+    sem_post (&mutex);
 }
+
+
+
+int main(int argc, char * argv[])
+{
+    pthread_t tid1, tid2;
+    sem_init(&mutex, 0, 1);
+    if(pthread_create(&tid1, NULL, Count, NULL))
+    {
+        printf("\n ERROR creating thread 1");
+        exit(1);
+    }
+
+    if(pthread_create(&tid2, NULL, Count, NULL))
+    {
+        printf("\n ERROR creating thread 2");
+        exit(1);
+    }
+
+    if(pthread_join(tid1, NULL))	/* wait for the thread 1 to finish */
+    {
+        printf("\n ERROR joining thread");
+        exit(1);
+    }
+
+    if(pthread_join(tid2, NULL))        /* wait for the thread 2 to finish */
+    {
+        printf("\n ERROR joining thread");
+        exit(1);
+    }
+
+    if (cnt < 2 * NITER)
+        printf("\n BOOM! cnt is [%d], should be %d\n", cnt, 2*NITER);
+    else
+        printf("\n OK! cnt is [%d]\n", cnt);
+
+    pthread_exit(NULL);
+}
+
 
